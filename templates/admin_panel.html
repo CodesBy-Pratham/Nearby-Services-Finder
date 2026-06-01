@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Admin Panel{% endblock %}
+
+{% block content %}
+<h4 class="mb-4">Admin Panel</h4>
+
+<div class="row g-4">
+  <!-- Categories Section -->
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center bg-dark text-white">
+        <span>Categories</span>
+        <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addCategoryModal" onclick="openAddCategory()">+ Add</button>
+      </div>
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead><tr><th>#</th><th>Name</th><th>Action</th></tr></thead>
+          <tbody id="categories-tbody">
+            <tr><td colspan="3" class="text-center text-muted py-3">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Users Section -->
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-header bg-dark text-white">Users</div>
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead><tr><th>#</th><th>Username</th><th>Role</th><th>Assign Role</th></tr></thead>
+          <tbody id="users-tbody">
+            <tr><td colspan="4" class="text-center text-muted py-3">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Category Modal -->
+<div class="modal fade" id="addCategoryModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="cat-modal-title">Add Category</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="cat-error" class="alert alert-danger d-none"></div>
+        <input type="text" id="cat-name" class="form-control" placeholder="Category name" />
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-dark" onclick="createCategory()">Add</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  requireAuth();
+  if (getRole() !== 'ADMIN') window.location.href = '/';
+
+  async function loadCategories() {
+    const res = await apiFetch(`${API}/api/services/categories/`);
+    const data = await res.json();
+    const tbody = document.getElementById('categories-tbody');
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">No categories.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map((c, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${c.name}</td>
+        <td>
+          <button class="btn btn-outline-dark btn-sm me-1" onclick="editCategory(${c.id}, '${c.name.replace(/'/g, "\\'")}')">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteCategory(${c.id})">Delete</button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  let editingCategoryId = null;
+
+  function openAddCategory() {
+    editingCategoryId = null;
+    document.getElementById('cat-modal-title').textContent = 'Add Category';
+    document.getElementById('cat-name').value = '';
+    document.getElementById('cat-error').classList.add('d-none');
+  }
+
+  function editCategory(id, name) {
+    editingCategoryId = id;
+    document.getElementById('cat-modal-title').textContent = 'Edit Category';
+    document.getElementById('cat-name').value = name;
+    document.getElementById('cat-error').classList.add('d-none');
+    new bootstrap.Modal(document.getElementById('addCategoryModal')).show();
+  }
+
+  async function createCategory() {
+    const name = document.getElementById('cat-name').value.trim();
+    const errEl = document.getElementById('cat-error');
+    errEl.classList.add('d-none');
+    if (!name) return;
+
+    const url = editingCategoryId
+      ? `${API}/api/services/categories/${editingCategoryId}/update/`
+      : `${API}/api/services/categories/create/`;
+    const method = editingCategoryId ? 'PATCH' : 'POST';
+
+    const res = await apiFetch(url, {
+      method,
+      body: JSON.stringify({ name })
+    });
+
+    if (res.ok) {
+      bootstrap.Modal.getInstance(document.getElementById('addCategoryModal')).hide();
+      document.getElementById('cat-name').value = '';
+      editingCategoryId = null;
+      loadCategories();
+    } else {
+      const err = await res.json();
+      errEl.textContent = Object.values(err).flat().join(' ');
+      errEl.classList.remove('d-none');
+    }
+  }
+
+  async function deleteCategory(id) {
+    if (!confirm('Delete this category?')) return;
+    await apiFetch(`${API}/api/services/categories/${id}/delete/`, { method: 'DELETE' });
+    loadCategories();
+  }
+
+  async function loadUsers() {
+    const res = await apiFetch(`${API}/api/auth/users/`);
+    if (!res.ok) {
+      document.getElementById('users-tbody').innerHTML =
+        '<tr><td colspan="4" class="text-center text-muted">No user list API yet.</td></tr>';
+      return;
+    }
+    const data = await res.json();
+    document.getElementById('users-tbody').innerHTML = data.map((u, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${u.username}</td>
+        <td><span class="badge bg-secondary">${u.role}</span></td>
+        <td>
+          <select class="form-select form-select-sm" onchange="assignRole(${u.id}, this.value)">
+            <option value="">Change role</option>
+            <option value="USER">USER</option>
+            <option value="STAFF">STAFF</option>
+            <option value="ADMIN">ADMIN</option>
+          </select>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  async function assignRole(userId, role) {
+    if (!role) return;
+    const res = await apiFetch(`${API}/api/auth/users/${userId}/assign-role/`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role })
+    });
+    if (res.ok) loadUsers();
+    else alert('Failed to assign role');
+  }
+
+  loadCategories();
+  loadUsers();
+</script>
+{% endblock %}

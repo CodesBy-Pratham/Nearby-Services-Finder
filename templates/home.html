@@ -1,0 +1,453 @@
+{% extends "base.html" %}
+{% block title %}Map - Nearby Services{% endblock %}
+
+{% block extra_css %}
+<style>
+
+html,
+body{
+    height:100%;
+    overflow:hidden;
+    background:#f5f7fb;
+}
+
+main{
+    height:100%;
+}
+
+.page-container{
+    height:calc(100vh - 70px); /* Adjust if navbar height differs */
+}
+
+#search-panel{
+    height:100%;
+    display:flex;
+    flex-direction:column;
+}
+
+.search-card{
+    border-radius:16px;
+    flex-shrink:0;
+}
+
+.results-card{
+    border-radius:16px;
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+}
+
+.results-container{
+    flex:1;
+    overflow-y:auto;
+}
+
+.result-card{
+    cursor:pointer;
+    padding:14px;
+    border-bottom:1px solid #edf0f5;
+    transition:all .25s ease;
+}
+
+.result-card:hover{
+    background:#f8faff;
+    transform:translateX(4px);
+}
+
+.result-card:last-child{
+    border-bottom:none;
+}
+
+.map-card{
+    height:100%;
+    border-radius:16px;
+    overflow:hidden;
+}
+
+#map{
+    width:100%;
+    height:calc(100vh - 110px);
+}
+
+.form-control,
+.form-select,
+.btn{
+    border-radius:12px;
+}
+
+.stat-card{
+    border-radius:16px;
+}
+
+::-webkit-scrollbar{
+    width:6px;
+}
+
+::-webkit-scrollbar-thumb{
+    background:#c5cbd6;
+    border-radius:10px;
+}
+
+@media(max-width:992px){
+
+    html,
+    body{
+        overflow:auto;
+    }
+
+    .page-container{
+        height:auto;
+    }
+
+    #map{
+        height:60vh;
+    }
+
+    .results-container{
+        max-height:300px;
+    }
+}
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-2 page-container">
+
+    <div class="row g-3 h-100">
+
+        <!-- LEFT PANEL -->
+        <div class="col-lg-3 h-100">
+            <div id="search-panel">
+
+                <!-- Stats -->
+                <div class="row g-2 mb-3 staff-admin-only d-none">
+
+                    <div class="col-6">
+                        <div class="card bg-dark text-white shadow-sm stat-card">
+                            <div class="card-body text-center p-2">
+                                <small>Total Services</small>
+                                <h4 id="stat-services" class="mb-0">0</h4>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-6">
+                        <div class="card bg-secondary text-white shadow-sm stat-card">
+                            <div class="card-body text-center p-2">
+                                <small>Categories</small>
+                                <h4 id="stat-categories" class="mb-0">0</h4>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Search -->
+                <div class="card border-0 shadow-lg search-card">
+                    <div class="card-body">
+
+                        <h5 class="fw-bold mb-3">
+                            🔍 Search Services
+                        </h5>
+
+                        <button class="btn btn-dark w-100 mb-3"
+                                onclick="useMyLocation()">
+                            📍 Use My Location
+                        </button>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold">
+                                Latitude
+                            </label>
+
+                            <input type="number"
+                                   id="lat"
+                                   class="form-control"
+                                   step="any"
+                                   placeholder="Latitude">
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold">
+                                Longitude
+                            </label>
+
+                            <input type="number"
+                                   id="lng"
+                                   class="form-control"
+                                   step="any"
+                                   placeholder="Longitude">
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold">
+                                Radius
+                                <span id="radius-val"
+                                      class="badge bg-primary">
+                                    5
+                                </span>
+                                km
+                            </label>
+
+                            <input type="range"
+                                   id="radius"
+                                   class="form-range"
+                                   min="1"
+                                   max="50"
+                                   value="5"
+                                   oninput="document.getElementById('radius-val').textContent=this.value">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">
+                                Category
+                            </label>
+
+                            <select id="category"
+                                    class="form-select">
+                                <option value="">
+                                    All Categories
+                                </option>
+                            </select>
+                        </div>
+
+                        <button class="btn btn-primary w-100"
+                                onclick="searchNearby()">
+                            Search Nearby
+                        </button>
+
+                        <div id="search-error"
+                             class="alert alert-danger mt-2 d-none">
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Results -->
+                <div class="card border-0 shadow-lg mt-3 results-card">
+
+                    <div class="card-header bg-white">
+                        <div class="d-flex justify-content-between align-items-center">
+
+                            <h6 class="fw-bold mb-0">
+                                Results
+                            </h6>
+
+                            <span id="result-count"
+                                  class="badge bg-dark rounded-pill">
+                                0
+                            </span>
+
+                        </div>
+                    </div>
+
+                    <div id="results-list"
+                         class="results-container">
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+        <!-- MAP -->
+        <div class="col-lg-9 h-100">
+
+            <div class="card border-0 shadow-lg map-card">
+
+                <div class="card-header bg-white">
+                    <div class="d-flex justify-content-between align-items-center">
+
+                        <h6 class="fw-bold mb-0">
+                            🗺 Nearby Services Map
+                        </h6>
+
+                        <span class="badge bg-primary">
+                            Click map to select location
+                        </span>
+
+                    </div>
+                </div>
+
+                <div class="card-body p-0">
+                    <div id="map"></div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  requireAuth();
+
+  const map = L.map('map').setView([19.9975, 73.7898], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  let serviceMarkers = [];
+  let pinMarker = null;
+  let radiusCircle = null;
+
+  // Click on map → fill lat/lng fields and draw pin
+  map.on('click', function (e) {
+    const lat = e.latlng.lat.toFixed(6);
+    const lng = e.latlng.lng.toFixed(6);
+    document.getElementById('lat').value = lat;
+    document.getElementById('lng').value = lng;
+
+    if (pinMarker) map.removeLayer(pinMarker);
+    pinMarker = L.marker([lat, lng])
+      .addTo(map)
+      .bindPopup(`📍 Selected: ${lat}, ${lng}`)
+      .openPopup();
+
+    drawRadiusCircle(lat, lng);
+  });
+
+  // Redraw circle when radius slider changes
+  document.getElementById('radius').addEventListener('input', function () {
+    document.getElementById('radius-val').textContent = this.value;
+    const lat = document.getElementById('lat').value;
+    const lng = document.getElementById('lng').value;
+    if (lat && lng) drawRadiusCircle(lat, lng);
+  });
+
+  function drawRadiusCircle(lat, lng) {
+    const radiusKm = parseFloat(document.getElementById('radius').value);
+    if (radiusCircle) map.removeLayer(radiusCircle);
+    radiusCircle = L.circle([lat, lng], {
+      radius: radiusKm * 1000,
+      color: '#0d6efd',
+      fillColor: '#0d6efd',
+      fillOpacity: 0.08,
+      weight: 2,
+    }).addTo(map);
+  }
+
+  function clearServiceMarkers() {
+    serviceMarkers.forEach(m => map.removeLayer(m));
+    serviceMarkers = [];
+  }
+
+  // Load categories
+  async function loadCategories() {
+    const res = await apiFetch(`${API}/api/services/categories/`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const sel = document.getElementById('category');
+    data.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.name;
+      opt.textContent = c.name;
+      sel.appendChild(opt);
+    });
+  }
+
+  function useMyLocation() {
+    if (!navigator.geolocation) return alert('Geolocation not supported');
+    navigator.geolocation.getCurrentPosition(pos => {
+      const lat = pos.coords.latitude.toFixed(6);
+      const lng = pos.coords.longitude.toFixed(6);
+      document.getElementById('lat').value = lat;
+      document.getElementById('lng').value = lng;
+      map.setView([lat, lng], 14);
+      if (pinMarker) map.removeLayer(pinMarker);
+      pinMarker = L.marker([lat, lng]).addTo(map)
+        .bindPopup('📍 Your location').openPopup();
+      drawRadiusCircle(lat, lng);
+    }, () => alert('Unable to get location'));
+  }
+
+  async function searchNearby() {
+    const lat = document.getElementById('lat').value;
+    const lng = document.getElementById('lng').value;
+    const radius = document.getElementById('radius').value;
+    const category = document.getElementById('category').value;
+    const errEl = document.getElementById('search-error');
+    errEl.classList.add('d-none');
+
+    if (!lat || !lng) {
+      errEl.textContent = 'Click on the map or enter latitude and longitude.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+
+    let url = `${API}/api/services/services/nearby/?lat=${lat}&lng=${lng}&radius=${radius}`;
+    if (category) url += `&category=${encodeURIComponent(category)}`;
+
+    const res = await apiFetch(url);
+    const data = await res.json();
+
+    clearServiceMarkers();
+    document.getElementById('result-count').textContent = data.count;
+    document.getElementById('results-list').innerHTML = '';
+
+    if (data.count === 0) {
+      document.getElementById('results-list').innerHTML = '<p class="text-muted small px-2">No services found.</p>';
+      return;
+    }
+
+    map.setView([lat, lng], 13);
+
+    data.results.forEach(s => {
+      // Place marker on map
+      const marker = L.marker([s.latitude, s.longitude])
+        .addTo(map)
+        .bindPopup(`
+          <strong>${s.name}</strong><br>
+          ${s.category} &bull; ${s.rating ?? 'N/A'} ⭐<br>
+          ${s.distance_km} km away
+        `);
+      serviceMarkers.push(marker);
+
+      // Sidebar card — click to fly to marker
+      const card = document.createElement('div');
+      card.className = 'result-card border-bottom p-2';
+      card.innerHTML = `
+        <div class="fw-semibold">${s.name}</div>
+        <small class="text-muted">${s.category} &bull; ${s.rating ?? 'N/A'} ⭐ &bull; ${s.distance_km} km</small>
+      `;
+      card.addEventListener('click', () => {
+        map.setView([s.latitude, s.longitude], 16);
+        marker.openPopup();
+      });
+      document.getElementById('results-list').appendChild(card);
+    });
+  }
+
+  // Stats for staff/admin only
+  async function loadStats() {
+    const role = getRole();
+    if (role !== 'STAFF' && role !== 'ADMIN') return;
+
+    document.querySelectorAll('.staff-admin-only').forEach(el => el.classList.remove('d-none'));
+
+    const [servicesRes, categoriesRes] = await Promise.all([
+      apiFetch(`${API}/api/services/services/`),
+      apiFetch(`${API}/api/services/categories/`)
+    ]);
+
+    if (servicesRes.ok) {
+      const services = await servicesRes.json();
+      document.getElementById('stat-services').textContent = services.length;
+    }
+    if (categoriesRes.ok) {
+      const categories = await categoriesRes.json();
+      document.getElementById('stat-categories').textContent = categories.length;
+    }
+  }
+
+  loadCategories();
+  loadStats();
+</script>
+{% endblock %}
+

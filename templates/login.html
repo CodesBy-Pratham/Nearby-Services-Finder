@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-5">
+    <div class="card shadow-sm mt-5">
+      <div class="card-body p-4">
+        <h4 class="card-title text-center mb-4">Login</h4>
+        <div id="error-msg" class="alert alert-danger d-none"></div>
+        <form id="login-form">
+          <div class="mb-3">
+            <label class="form-label">Username</label>
+            <input type="text" id="username" class="form-control" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Password</label>
+            <input type="password" id="password" class="form-control" required />
+          </div>
+          <button type="submit" class="btn btn-dark w-100">Login</button>
+        </form>
+        <p class="text-center mt-3 mb-0">
+          Don't have an account? <a href="/register/">Register</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.getElementById('login-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    const errorEl = document.getElementById('error-msg');
+    errorEl.classList.add('d-none');
+
+    const res = await fetch(`${API}/api/auth/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      localStorage.setItem('access', data.access);
+      localStorage.setItem('refresh', data.refresh);
+
+      // fetch profile to get role
+      const profile = await fetch(`${API}/api/auth/profile/`, {
+        headers: { 'Authorization': 'Bearer ' + data.access }
+      });
+      if (profile.ok) {
+        const p = await profile.json();
+        localStorage.setItem('username', p.username);
+        localStorage.setItem('role', p.role);
+      }
+      window.location.href = '/map/';
+    } else {
+      const err = await res.json();
+      errorEl.textContent = err.detail || 'Invalid credentials';
+      errorEl.classList.remove('d-none');
+    }
+  });
+</script>
+{% endblock %}

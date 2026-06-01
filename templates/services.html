@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}Services{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">Services</h4>
+  <button id="btn-add-service" class="btn btn-dark btn-sm d-none" data-bs-toggle="modal" data-bs-target="#addServiceModal" onclick="openAddService()">
+    + Add Service
+  </button>
+</div>
+
+<!-- Category Filter -->
+<div class="row mb-3">
+  <div class="col-md-4">
+    <select id="filter-category" class="form-select form-select-sm" onchange="loadServices()">
+      <option value="">All Categories</option>
+    </select>
+  </div>
+</div>
+
+<div id="error-msg" class="alert alert-danger d-none"></div>
+
+<!-- Services Table -->
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead class="table-dark">
+        <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th>Category</th>
+          <th>Rating</th>
+          <th>Created</th>
+          <th id="actions-col" class="d-none">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="services-tbody">
+        <tr><td colspan="6" class="text-center text-muted py-4">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add Service Modal -->
+<div class="modal fade" id="addServiceModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="svc-modal-title">Add New Service</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="modal-error" class="alert alert-danger d-none"></div>
+        <form id="add-service-form">
+          <div class="mb-3">
+            <label class="form-label">Name</label>
+            <input type="text" id="svc-name" class="form-control" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Category</label>
+            <select id="svc-category" class="form-select" required></select>
+          </div>
+          <div class="row">
+            <div class="col mb-3">
+              <label class="form-label">Latitude</label>
+              <input type="number" id="svc-lat" class="form-control" step="any" required />
+            </div>
+            <div class="col mb-3">
+              <label class="form-label">Longitude</label>
+              <input type="number" id="svc-lng" class="form-control" step="any" required />
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Rating (optional)</label>
+            <input type="number" id="svc-rating" class="form-control" min="0" max="5" step="0.1" />
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-dark" id="svc-save-btn" onclick="createService()">Add Service</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  requireAuth();
+
+  const role = getRole();
+
+  // Show add button and actions column for staff/admin
+  if (role === 'STAFF' || role === 'ADMIN') {
+    document.getElementById('btn-add-service').classList.remove('d-none');
+    document.getElementById('actions-col').classList.remove('d-none');
+  }
+
+  async function loadCategories() {
+    const res = await apiFetch(`${API}/api/services/categories/`);
+    if (!res.ok) return;
+    const data = await res.json();
+
+    const filterSel = document.getElementById('filter-category');
+    const modalSel = document.getElementById('svc-category');
+
+    data.forEach(c => {
+      filterSel.innerHTML += `<option value="${c.name}">${c.name}</option>`;
+      modalSel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+    });
+  }
+
+  let servicesById = {};
+
+  async function loadServices() {
+    const category = document.getElementById('filter-category').value;
+    let url = `${API}/api/services/services/`;
+    if (category) url += `?category=${encodeURIComponent(category)}`;
+
+    const res = await apiFetch(url);
+    const data = await res.json();
+    const tbody = document.getElementById('services-tbody');
+
+    servicesById = {};
+    data.forEach(s => { servicesById[s.id] = s; });
+
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No services found.</td></tr>';
+      return;
+    }
+
+    const canEdit = role === 'STAFF' || role === 'ADMIN';
+
+    tbody.innerHTML = data.map((s, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${s.name}</td>
+        <td>${s.category_name}</td>
+        <td>${s.rating ?? '-'}</td>
+        <td>${new Date(s.created_at).toLocaleDateString()}</td>
+        <td class="${canEdit ? '' : 'd-none'}">
+          ${canEdit ? `<button class="btn btn-outline-dark btn-sm me-1" onclick="editService(${s.id})">Edit</button>` : ''}
+          ${role === 'ADMIN' ? `<button class="btn btn-danger btn-sm" onclick="deleteService(${s.id})">Delete</button>` : ''}
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  let editingServiceId = null;
+
+  function openAddService() {
+    editingServiceId = null;
+    document.getElementById('svc-modal-title').textContent = 'Add New Service';
+    document.getElementById('svc-save-btn').textContent = 'Add Service';
+    document.getElementById('add-service-form').reset();
+    document.getElementById('modal-error').classList.add('d-none');
+  }
+
+  function editService(id) {
+    const s = servicesById[id];
+    if (!s) return;
+    editingServiceId = id;
+    document.getElementById('svc-modal-title').textContent = 'Edit Service';
+    document.getElementById('svc-save-btn').textContent = 'Save Changes';
+    document.getElementById('modal-error').classList.add('d-none');
+    document.getElementById('svc-name').value = s.name;
+    document.getElementById('svc-category').value = s.category;
+    document.getElementById('svc-lat').value = s.latitude ?? '';
+    document.getElementById('svc-lng').value = s.longitude ?? '';
+    document.getElementById('svc-rating').value = s.rating ?? '';
+    new bootstrap.Modal(document.getElementById('addServiceModal')).show();
+  }
+
+  async function createService() {
+    const name = document.getElementById('svc-name').value;
+    const category = document.getElementById('svc-category').value;
+    const lat = document.getElementById('svc-lat').value;
+    const lng = document.getElementById('svc-lng').value;
+    const rating = document.getElementById('svc-rating').value;
+    const errEl = document.getElementById('modal-error');
+    errEl.classList.add('d-none');
+
+    const body = { name, category: parseInt(category), latitude: parseFloat(lat), longitude: parseFloat(lng) };
+    if (rating) body.rating = parseFloat(rating);
+
+    const url = editingServiceId
+      ? `${API}/api/services/services/${editingServiceId}/update/`
+      : `${API}/api/services/services/create/`;
+    const method = editingServiceId ? 'PATCH' : 'POST';
+
+    const res = await apiFetch(url, {
+      method,
+      body: JSON.stringify(body)
+    });
+
+    if (res.ok) {
+      bootstrap.Modal.getInstance(document.getElementById('addServiceModal')).hide();
+      document.getElementById('add-service-form').reset();
+      editingServiceId = null;
+      loadServices();
+    } else {
+      const err = await res.json();
+      errEl.textContent = Object.values(err).flat().join(' ');
+      errEl.classList.remove('d-none');
+    }
+  }
+
+  async function deleteService(id) {
+    if (!confirm('Delete this service?')) return;
+    const res = await apiFetch(`${API}/api/services/services/${id}/delete/`, { method: 'DELETE' });
+    if (res.ok) loadServices();
+  }
+
+  loadCategories();
+  loadServices();
+</script>
+{% endblock %}
