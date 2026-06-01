@@ -318,7 +318,7 @@ Auto-generated OpenAPI docs are available after starting the server:
 
 ---
 
-## Frontend (Bonus)
+## Frontend
 
 A template-based frontend is included. No build step needed — runs alongside the Django server.
 
