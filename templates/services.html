@@ -43,7 +43,7 @@
 
 <!-- Add Service Modal -->
 <div class="modal fade" id="addServiceModal" tabindex="-1">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="svc-modal-title">Add New Service</h5>
@@ -60,14 +60,18 @@
             <label class="form-label">Category</label>
             <select id="svc-category" class="form-select" required></select>
           </div>
+          <div class="mb-3">
+            <label class="form-label">Pick Location <small class="text-muted">— click map to drop pin</small></label>
+            <div id="picker-map" style="height:240px; border-radius:6px; border:1px solid #dee2e6;"></div>
+          </div>
           <div class="row">
             <div class="col mb-3">
               <label class="form-label">Latitude</label>
-              <input type="number" id="svc-lat" class="form-control" step="any" required />
+              <input type="number" id="svc-lat" class="form-control" step="any" required placeholder="or type manually" />
             </div>
             <div class="col mb-3">
               <label class="form-label">Longitude</label>
-              <input type="number" id="svc-lng" class="form-control" step="any" required />
+              <input type="number" id="svc-lng" class="form-control" step="any" required placeholder="or type manually" />
             </div>
           </div>
           <div class="mb-3">
@@ -211,6 +215,52 @@
     const res = await apiFetch(`${API}/api/services/services/${id}/delete/`, { method: 'DELETE' });
     if (res.ok) loadServices();
   }
+
+  // --- Location picker map inside modal ---
+  let pickerMap = null;
+  let pickerMarker = null;
+
+  const modalEl = document.getElementById('addServiceModal');
+
+  modalEl.addEventListener('shown.bs.modal', function () {
+    if (pickerMap) { pickerMap.remove(); pickerMap = null; pickerMarker = null; }
+
+    pickerMap = L.map('picker-map').setView([20.5937, 78.9629], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(pickerMap);
+
+    const lat = parseFloat(document.getElementById('svc-lat').value);
+    const lng = parseFloat(document.getElementById('svc-lng').value);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      pickerMap.setView([lat, lng], 14);
+      pickerMarker = L.marker([lat, lng]).addTo(pickerMap);
+    }
+
+    pickerMap.on('click', function (e) {
+      document.getElementById('svc-lat').value = e.latlng.lat.toFixed(6);
+      document.getElementById('svc-lng').value = e.latlng.lng.toFixed(6);
+      if (pickerMarker) { pickerMarker.setLatLng(e.latlng); }
+      else { pickerMarker = L.marker(e.latlng).addTo(pickerMap); }
+    });
+  });
+
+  modalEl.addEventListener('hidden.bs.modal', function () {
+    if (pickerMap) { pickerMap.remove(); pickerMap = null; pickerMarker = null; }
+  });
+
+  function syncMarkerFromInputs() {
+    const lat = parseFloat(document.getElementById('svc-lat').value);
+    const lng = parseFloat(document.getElementById('svc-lng').value);
+    if (!pickerMap || isNaN(lat) || isNaN(lng)) return;
+    if (pickerMarker) { pickerMarker.setLatLng([lat, lng]); }
+    else { pickerMarker = L.marker([lat, lng]).addTo(pickerMap); }
+    pickerMap.setView([lat, lng], 14);
+  }
+
+  document.getElementById('svc-lat').addEventListener('change', syncMarkerFromInputs);
+  document.getElementById('svc-lng').addEventListener('change', syncMarkerFromInputs);
+  // --- end location picker ---
 
   loadCategories();
   loadServices();
