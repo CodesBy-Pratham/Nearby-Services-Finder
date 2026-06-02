@@ -3,6 +3,7 @@ attrs==26.1.0
 Django==6.0.5
 django-extensions==4.1
 django-filter==25.2
+django-restframework==0.0.1
 djangorestframework==3.17.1
 djangorestframework_simplejwt==5.5.1
 drf-spectacular==0.29.0
