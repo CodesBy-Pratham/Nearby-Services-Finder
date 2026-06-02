@@ -104,7 +104,7 @@ python manage.py runserver
 
 - API: `http://localhost:8000/api/`
 - Frontend: `http://localhost:8000/login/`
-- Swagger UI: `http://localhost:8000/api/schema/swagger-ui/`
+- Swagger UI: `http://localhost:8000/api/docs/`
 
 ---
 
@@ -157,7 +157,7 @@ Authorization: Bearer <access_token>
 | Method | Endpoint | Permission | Description |
 |--------|----------|------------|-------------|
 | POST | `/api/auth/register/` | Public | Register a new user |
-| POST | `/api/auth/` | Public | Login — returns access + refresh tokens |
+| POST | `/api/auth/login/` | Public | Login — returns access + refresh tokens |
 | POST | `/api/auth/refresh/` | Public | Refresh access token |
 | GET | `/api/auth/profile/` | Authenticated | Get current user profile |
 | GET | `/api/auth/users/` | Admin only | List all users |
@@ -175,7 +175,7 @@ POST /api/auth/register/
 
 **Login:**
 ```json
-POST /api/auth/
+POST /api/auth/login/
 {
     "username": "john",
     "password": "securepassword"
@@ -313,7 +313,7 @@ Roles are assigned by an Admin via `PATCH /api/auth/users/<id>/assign-role/`.
 
 Auto-generated OpenAPI docs are available after starting the server:
 
-- **Swagger UI:** `http://localhost:8000/api/schema/swagger-ui/`
+- **Swagger UI:** `http://localhost:8000/api/docs/`
 - **OpenAPI JSON:** `http://localhost:8000/api/schema/`
 
 ---

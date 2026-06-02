@@ -30,6 +30,10 @@ urlpatterns = [
     path("services/create/", ServiceCreateView.as_view(), name="service-create"),
     path("services/nearby/", NearbyServicesView.as_view(), name="nearby-services"),
     path("services/<int:pk>/", ServiceDetailView.as_view(), name="service-detail"),
-    path("services/<int:pk>/update/", ServiceUpdateView.as_view(), name="service-update"),
-    path("services/<int:pk>/delete/", ServiceDeleteView.as_view(), name="service-delete"),
+    path(
+        "services/<int:pk>/update/", ServiceUpdateView.as_view(), name="service-update"
+    ),
+    path(
+        "services/<int:pk>/delete/", ServiceDeleteView.as_view(), name="service-delete"
+    ),
 ]

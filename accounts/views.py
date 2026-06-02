@@ -1,17 +1,23 @@
-from rest_framework import generics
 from .models import User
 from .serializers import RegisterSerializer
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .permissions import IsAdmin
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers as drf_serializers
 
 # Create your views here.
 
 
-class RegisterView(generics.CreateAPIView):
-    queryset = User.objects.all()
-    serializer_class = RegisterSerializer
+class RegisterView(APIView):
+    @extend_schema(request=RegisterSerializer, responses={201: RegisterSerializer})
+    def post(self, request):
+        serializer = RegisterSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=201)
+        return Response(serializer.errors, status=400)
 
 
 class ProfileView(APIView):
@@ -48,6 +54,16 @@ class UserListView(APIView):
 class AssignRoleView(APIView):
     permission_classes = [IsAuthenticated, IsAdmin]
 
+    @extend_schema(
+        request=inline_serializer(
+            name="AssignRoleRequest",
+            fields={"role": drf_serializers.ChoiceField(choices=["USER", "STAFF", "ADMIN"])},
+        ),
+        responses={200: inline_serializer(
+            name="AssignRoleResponse",
+            fields={"message": drf_serializers.CharField()},
+        )},
+    )
     def patch(self, request, pk):
         try:
             user = User.objects.get(pk=pk)

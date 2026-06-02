@@ -7,6 +7,9 @@ from django.contrib.gis.measure import D
 from django.contrib.gis.db.models.functions import Distance
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiParameter
+from drf_spectacular.openapi import OpenApiTypes
+from rest_framework import serializers as drf_serializers
 
 
 class CategoryListView(APIView):
@@ -21,6 +24,7 @@ class CategoryListView(APIView):
 class CategoryCreateView(APIView):
     permission_classes = [IsAuthenticated, IsAdmin]
 
+    @extend_schema(request=CategorySerializer, responses={201: CategorySerializer})
     def post(self, request):
         serializer = CategorySerializer(data=request.data)
         if serializer.is_valid():
@@ -32,6 +36,7 @@ class CategoryCreateView(APIView):
 class CategoryUpdateView(APIView):
     permission_classes = [IsAuthenticated, IsAdmin]
 
+    @extend_schema(request=CategorySerializer, responses=CategorySerializer)
     def patch(self, request, pk):
         try:
             category = Category.objects.get(pk=pk)
@@ -73,6 +78,7 @@ class ServiceListView(APIView):
 class ServiceCreateView(APIView):
     permission_classes = [IsAuthenticated, IsStaffOrAdmin]
 
+    @extend_schema(request=ServiceSerializer, responses={201: ServiceSerializer})
     def post(self, request):
         serializer = ServiceSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
@@ -96,6 +102,7 @@ class ServiceDetailView(APIView):
 class ServiceUpdateView(APIView):
     permission_classes = [IsAuthenticated, IsStaffOrAdmin]
 
+    @extend_schema(request=ServiceSerializer, responses=ServiceSerializer)
     def patch(self, request, pk):
         try:
             service = Service.objects.get(pk=pk)
@@ -125,6 +132,55 @@ class ServiceDeleteView(APIView):
 class NearbyServicesView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                "lat",
+                OpenApiTypes.FLOAT,
+                required=True,
+                description="User latitude",
+            ),
+            OpenApiParameter(
+                "lng",
+                OpenApiTypes.FLOAT,
+                required=True,
+                description="User longitude",
+            ),
+            OpenApiParameter(
+                "radius",
+                OpenApiTypes.FLOAT,
+                required=False,
+                description="Radius in km (default: 5)",
+            ),
+            OpenApiParameter(
+                "category",
+                OpenApiTypes.STR,
+                required=False,
+                description="Filter by category name",
+            ),
+        ],
+        responses={
+            200: inline_serializer(
+                name="NearbyServicesResponse",
+                fields={
+                    "count": drf_serializers.IntegerField(),
+                    "results": inline_serializer(
+                        name="NearbyServiceItem",
+                        fields={
+                            "id": drf_serializers.IntegerField(),
+                            "name": drf_serializers.CharField(),
+                            "category": drf_serializers.CharField(),
+                            "rating": drf_serializers.FloatField(),
+                            "distance_km": drf_serializers.FloatField(),
+                            "latitude": drf_serializers.FloatField(),
+                            "longitude": drf_serializers.FloatField(),
+                        },
+                        many=True,
+                    ),
+                },
+            )
+        },
+    )
     def get(self, request):
         try:
             lat = float(request.query_params.get("lat"))
@@ -146,7 +202,7 @@ class NearbyServicesView(APIView):
             .order_by("distance")
         )
 
-        #  category filter (optional)
+        #  category filter
         if category:
             queryset = queryset.filter(category__name__iexact=category)
 
